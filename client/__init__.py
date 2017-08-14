@@ -24,6 +24,10 @@ from containerregistry.client import docker_creds_
 setattr(x, 'docker_creds', docker_creds_)
 
 
+from containerregistry.client import logging_setup_
+setattr(x, 'logging_setup', logging_setup_)
+
+
 from containerregistry.client import monitor_
 setattr(x, 'monitor', monitor_)
 

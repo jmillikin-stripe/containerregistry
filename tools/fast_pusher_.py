@@ -21,9 +21,11 @@ compatible with docker_pusher.
 
 
 import argparse
+import logging
 
 from containerregistry.client import docker_creds
 from containerregistry.client import docker_name
+from containerregistry.client import logging_setup
 from containerregistry.client.v2_2 import docker_image as v2_2_image
 from containerregistry.client.v2_2 import docker_session
 from containerregistry.client.v2_2 import oci_compat
@@ -85,7 +87,9 @@ def Tag(name, files):
 
 
 def main():
+  logging_setup.DefineCommandLineArgs(parser)
   args = parser.parse_args()
+  logging_setup.Init(args=args)
 
   if not args.name:
     raise Exception('--name is a required arguments.')
@@ -102,28 +106,33 @@ def main():
   if not args.config and not args.tarball:
     raise Exception('Either --config or --tarball must be specified.')
 
+  if len(args.digest or []) != len(args.layer or []):
+    raise Exception('--digest and --layer must have matching lengths.')
+
   # If config is specified, use that.  Otherwise, fallback on reading
   # the config from the tarball.
   config = args.config
   if args.config:
+    logging.info('Reading config from %r', args.config)
     with open(args.config, 'r') as reader:
       config = reader.read()
   elif args.tarball:
+    logging.info('Reading config from tarball %r', args.tarball)
     with v2_2_image.FromTarball(args.tarball) as base:
       config = base.config_file()
 
-  if len(args.digest or []) != len(args.layer or []):
-    raise Exception('--digest and --layer must have matching lengths.')
+  # Resolve the appropriate credential to use based on the standard Docker
+  # client logic.
+  logging.info('Loading Docker credentials for repository %r', str(name))
+  creds = docker_creds.DefaultKeychain.Resolve(name)
 
   transport = transport_pool.Http(httplib2.Http, size=_THREADS)
 
-  # Resolve the appropriate credential to use based on the standard Docker
-  # client logic.
-  creds = docker_creds.DefaultKeychain.Resolve(name)
-
   with docker_session.Push(name, creds, transport, threads=_THREADS) as session:
+    logging.info('Loading v2.2 image from disk ...')
     with v2_2_image.FromDisk(config, zip(args.digest or [], args.layer or []),
                              legacy_base=args.tarball) as v2_2_img:
+      logging.info('Starting upload ...')
       if args.oci:
         with oci_compat.OCIFromV22(v2_2_img) as oci_img:
           session.upload(oci_img)
