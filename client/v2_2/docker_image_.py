@@ -337,6 +337,11 @@ class FromTarball(DockerImage):
 
   def _gzipped_content(self, name):
     """Returns the result of _content with gzip applied."""
+    # Allow the legacy tarball to contain pre-compressed versions of the layers.
+    try:
+      return self._content(name + '.gz', memoize=False)
+    except KeyError:
+      pass
     unzipped = self._content(name, memoize=False)
     buf = cStringIO.StringIO()
     f = gzip.GzipFile(mode='wb', compresslevel=self._compresslevel, fileobj=buf)
@@ -498,16 +503,13 @@ class FromDisk(DockerImage):
     self._config = config_file
     self._layers = []
     self._layer_to_filename = {}
+    self._legacy_base = legacy_base
     for (name_file, content_file) in layers:
       with open(name_file, 'r') as reader:
         layer_name = 'sha256:' + reader.read()
       self._layers.append(layer_name)
       self._layer_to_filename[layer_name] = content_file
 
-    self._legacy_base = None
-    if legacy_base:
-      with FromTarball(legacy_base) as base:
-        self._legacy_base = base
 
   def manifest(self):
     """Override."""

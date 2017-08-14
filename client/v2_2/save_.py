@@ -40,7 +40,8 @@ def _diff_id(v1_img, blob):
 def multi_image_tarball(
     tag_to_image,
     tar,
-    tag_to_v1_image=None
+    tag_to_v1_image=None,
+    precompress_layers=False,
 ):
   """Produce a "docker save" compatible tarball from the DockerImages.
 
@@ -49,6 +50,8 @@ def multi_image_tarball(
     tar: the open tarfile into which we are writing the image tarball.
     tag_to_v1_image: A dictionary of tags to the the v1 form of the images
         they label.  If this isn't provided, the image is simply converted.
+    precompress_layers: If true, layers will also be written in compressed
+        form so pushes don't have to recompress them.
   """
 
   def add_file(filename, contents):
@@ -98,7 +101,7 @@ def multi_image_tarball(
 
   # v2.2 tarballs are a superset of v1 tarballs, so delegate
   # to v1 to save itself.
-  v1_save.multi_image_tarball(tag_to_v1_image, tar)
+  v1_save.multi_image_tarball(tag_to_v1_image, tar, precompress_layers)
 
   add_file('manifest.json', json.dumps(manifests, sort_keys=True))
 

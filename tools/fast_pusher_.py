@@ -55,6 +55,9 @@ parser.add_argument('--stamp-info-file', action='append', required=False,
                     help=('A list of files from which to read substitutions '
                           'to make in the provided --name, e.g. {BUILD_USER}'))
 
+parser.add_argument('--gzip-compression-level', action='store', type=int,
+                    default=9, help='Gzip compression level for legacy layers.')
+
 _THREADS = 8
 
 
@@ -101,12 +104,16 @@ def main():
   # If config is specified, use that.  Otherwise, fallback on reading
   # the config from the tarball.
   config = args.config
+  legacy_tarball = None
   if args.config:
     with open(args.config, 'r') as reader:
       config = reader.read()
   elif args.tarball:
-    with v2_2_image.FromTarball(args.tarball) as base:
-      config = base.config_file()
+    legacy_tarball = v2_2_image.FromTarball(
+            tarball=args.tarball,
+            compresslevel=args.gzip_compression_level)
+    with legacy_tarball:
+      config = legacy_tarball.config_file()
 
   if len(args.digest or []) != len(args.layer or []):
     raise Exception('--digest and --layer must have matching lengths.')
@@ -119,7 +126,7 @@ def main():
 
   with docker_session.Push(name, creds, transport, threads=_THREADS) as session:
     with v2_2_image.FromDisk(config, zip(args.digest or [], args.layer or []),
-                             legacy_base=args.tarball) as v2_2_img:
+                             legacy_base=legacy_tarball) as v2_2_img:
       session.upload(v2_2_img)
       print('{name} was published with digest: {digest}'.format(
           name=name, digest=v2_2_img.digest()))

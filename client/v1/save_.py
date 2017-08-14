@@ -27,13 +27,16 @@ from containerregistry.client.v1 import docker_image
 
 def multi_image_tarball(
     tag_to_image,
-    tar
+    tar,
+    precompress_layers=False,
 ):
   """Produce a "docker save" compatible tarball from the DockerImages.
 
   Args:
     tag_to_image: A dictionary of tags to the images they label.
     tar: the open tarfile into which we are writing the image tarball.
+    precompress_layers: If true, layers will also be written in compressed
+        form so pushes don't have to recompress them.
   """
   def add_file(filename, contents):
     info = tarfile.TarInfo(filename)
@@ -67,6 +70,10 @@ def multi_image_tarball(
       # Add the unzipped layer tarball
       content = image.uncompressed_layer(layer_id)
       add_file(layer_id + '/layer.tar', content)
+
+      # Add the compressed layer tarball, if requested.
+      if precompress_layers:
+        add_file(layer_id + '/layer.tar.gz', image.layer(layer_id))
 
       # Now the json metadata
       add_file(layer_id + '/json', image.json(layer_id))
